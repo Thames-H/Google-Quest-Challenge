@@ -136,10 +136,11 @@ def build_dataset(
     target_columns: list[str],
     is_train: bool,
     metadata_spec,
+    model_source: str | Path,
 ):
     return GoogleQuestDataset(
         dataframe=dataframe,
-        tokenizer_name=config.backbone,
+        tokenizer_name=str(model_source),
         max_len_question=config.max_len_question,
         max_len_answer=config.max_len_answer,
         question_chunk_size=config.question_chunk_size,
@@ -161,16 +162,31 @@ def create_dataloaders(
     valid_df: pd.DataFrame,
     target_columns: list[str],
     metadata_spec,
+    model_source: str | Path,
 ):
     train_loader = _build_loader(
         config,
-        build_dataset(config, train_df, target_columns, is_train=True, metadata_spec=metadata_spec),
+        build_dataset(
+            config,
+            train_df,
+            target_columns,
+            is_train=True,
+            metadata_spec=metadata_spec,
+            model_source=model_source,
+        ),
         batch_size=config.batch_size,
         shuffle=True,
     )
     valid_loader = _build_loader(
         config,
-        build_dataset(config, valid_df, target_columns, is_train=True, metadata_spec=metadata_spec),
+        build_dataset(
+            config,
+            valid_df,
+            target_columns,
+            is_train=True,
+            metadata_spec=metadata_spec,
+            model_source=model_source,
+        ),
         batch_size=config.batch_size,
         shuffle=False,
     )
@@ -182,10 +198,18 @@ def create_validation_loader(
     valid_df: pd.DataFrame,
     target_columns: list[str],
     metadata_spec,
+    model_source: str | Path,
 ):
     return _build_loader(
         config,
-        build_dataset(config, valid_df, target_columns, is_train=True, metadata_spec=metadata_spec),
+        build_dataset(
+            config,
+            valid_df,
+            target_columns,
+            is_train=True,
+            metadata_spec=metadata_spec,
+            model_source=model_source,
+        ),
         batch_size=config.batch_size,
         shuffle=False,
     )
@@ -196,10 +220,18 @@ def create_test_loader(
     test_df: pd.DataFrame,
     target_columns: list[str],
     metadata_spec,
+    model_source: str | Path,
 ):
     return _build_loader(
         config,
-        build_dataset(config, test_df, target_columns, is_train=False, metadata_spec=metadata_spec),
+        build_dataset(
+            config,
+            test_df,
+            target_columns,
+            is_train=False,
+            metadata_spec=metadata_spec,
+            model_source=model_source,
+        ),
         batch_size=config.batch_size,
         shuffle=False,
     )
@@ -209,11 +241,12 @@ def build_model(
     config: TrainingConfig,
     target_columns: list[str],
     metadata_spec,
+    model_source: str | Path,
 ) -> DualTransformerRegressor:
     metadata_vocab_sizes = metadata_spec.vocab_sizes() if metadata_spec is not None else None
     meta_numeric_dim = len(metadata_spec.numeric_columns) if metadata_spec is not None else 0
     return DualTransformerRegressor(
-        backbone_name=config.backbone,
+        backbone_name=str(model_source),
         target_columns=target_columns,
         dropout=config.dropout,
         gradient_checkpointing=config.gradient_checkpointing,
@@ -310,6 +343,7 @@ def build_checkpoint_payload(
     seed: int,
     fold_index: int,
     score: float,
+    model_source: str | Path,
 ):
     return {
         "model_state_dict": model.state_dict(),
@@ -319,7 +353,7 @@ def build_checkpoint_payload(
         "score": score,
         "target_columns": target_columns,
         "model_kwargs": {
-            "backbone_name": config.backbone,
+            "backbone_name": str(model_source),
             "target_columns": target_columns,
             "dropout": config.dropout,
             "gradient_checkpointing": False,
@@ -340,10 +374,18 @@ def train_single_fold(
     target_columns: list[str],
     metadata_spec,
     checkpoint_path: Path,
+    model_source: str | Path,
 ):
     device = resolve_device(config)
-    train_loader, valid_loader = create_dataloaders(config, train_df, valid_df, target_columns, metadata_spec)
-    model = build_model(config, target_columns, metadata_spec).to(device)
+    train_loader, valid_loader = create_dataloaders(
+        config,
+        train_df,
+        valid_df,
+        target_columns,
+        metadata_spec,
+        model_source=model_source,
+    )
+    model = build_model(config, target_columns, metadata_spec, model_source=model_source).to(device)
     optimizer = create_optimizer(model, config)
     steps_per_epoch = math.ceil(len(train_loader) / config.grad_accum_steps)
     total_steps = max(steps_per_epoch * config.epochs, 1)
@@ -402,6 +444,7 @@ def train_single_fold(
                 seed=seed,
                 fold_index=fold_index,
                 score=best_score,
+                model_source=model_source,
             )
 
     if best_state is None or best_predictions is None or best_qa_ids is None:
@@ -425,6 +468,7 @@ def train_single_fold_with_fallback(
     target_columns: list[str],
     metadata_spec,
     checkpoint_path: Path,
+    model_source: str | Path,
 ):
     for fallback in build_memory_fallbacks(config):
         effective_config = deepcopy(config)
@@ -440,6 +484,7 @@ def train_single_fold_with_fallback(
                 target_columns=target_columns,
                 metadata_spec=metadata_spec,
                 checkpoint_path=checkpoint_path,
+                model_source=model_source,
             )
         except RuntimeError as error:
             if "out of memory" not in str(error).lower():
@@ -450,9 +495,16 @@ def train_single_fold_with_fallback(
     raise RuntimeError("All memory fallback configurations failed.")
 
 
-def load_checkpoint_model(checkpoint_path: Path, device: torch.device):
+def load_checkpoint_model(
+    checkpoint_path: Path,
+    device: torch.device,
+    model_source: str | Path | None = None,
+):
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    model = DualTransformerRegressor(**checkpoint["model_kwargs"]).to(device)
+    model_kwargs = dict(checkpoint["model_kwargs"])
+    if model_source is not None:
+        model_kwargs["backbone_name"] = str(model_source)
+    model = DualTransformerRegressor(**model_kwargs).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
     return model, checkpoint["target_columns"], checkpoint.get("config", {})
@@ -463,13 +515,20 @@ def recover_fold_result_from_checkpoint(
     checkpoint_path: Path,
     valid_df: pd.DataFrame,
     metadata_spec,
+    model_source: str | Path,
 ):
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     checkpoint_config = TrainingConfig(**checkpoint["config"])
     target_columns = checkpoint["target_columns"]
     device = resolve_device(runtime_config)
-    valid_loader = create_validation_loader(checkpoint_config, valid_df, target_columns, metadata_spec)
-    model, _, _ = load_checkpoint_model(checkpoint_path, device)
+    valid_loader = create_validation_loader(
+        checkpoint_config,
+        valid_df,
+        target_columns,
+        metadata_spec,
+        model_source=model_source,
+    )
+    model, _, _ = load_checkpoint_model(checkpoint_path, device, model_source=model_source)
     evaluation = evaluate_model(model, valid_loader, device, checkpoint_config)
     return {
         "checkpoint_path": str(checkpoint_path),
@@ -482,8 +541,10 @@ def recover_fold_result_from_checkpoint(
 def train_pipeline(
     config: TrainingConfig,
     data_dir: str | Path | None = None,
+    model_dir: str | Path | None = None,
 ):
     config = apply_runtime_overrides(config)
+    model_source = config.resolved_model_source(model_dir)
     directories = make_artifact_dirs(config.resolved_artifacts_dir())
     train_df, _test_df, target_columns, _sample_df, metadata_spec = prepare_frames(config, data_dir=data_dir)
     folds = build_group_folds(train_df, config.folds)
@@ -512,6 +573,7 @@ def train_pipeline(
                         checkpoint_path=checkpoint_path,
                         valid_df=fold_valid_df,
                         metadata_spec=metadata_spec,
+                        model_source=model_source,
                     )
                 except Exception:
                     result = train_single_fold_with_fallback(
@@ -523,6 +585,7 @@ def train_pipeline(
                         target_columns=target_columns,
                         metadata_spec=metadata_spec,
                         checkpoint_path=checkpoint_path,
+                        model_source=model_source,
                     )
             else:
                 result = train_single_fold_with_fallback(
@@ -534,6 +597,7 @@ def train_pipeline(
                     target_columns=target_columns,
                     metadata_spec=metadata_spec,
                     checkpoint_path=checkpoint_path,
+                    model_source=model_source,
                 )
 
             checkpoint_paths.append(result["checkpoint_path"])
@@ -579,8 +643,10 @@ def predict_pipeline(
     checkpoint_dir: str | Path,
     output_path: str | Path,
     data_dir: str | Path | None = None,
+    model_dir: str | Path | None = None,
 ):
     device = resolve_device(config)
+    model_source = config.resolved_model_source(model_dir)
     train_df, test_df, _target_columns, sample_df, metadata_spec = prepare_frames(config, data_dir=data_dir)
     checkpoint_dir = Path(checkpoint_dir)
     checkpoint_paths = sorted(checkpoint_dir.glob("model_seed*_fold*.pt"))
@@ -591,14 +657,24 @@ def predict_pipeline(
     target_columns = None
     with torch.no_grad():
         for checkpoint_path in checkpoint_paths:
-            model, checkpoint_targets, checkpoint_config_payload = load_checkpoint_model(checkpoint_path, device)
+            model, checkpoint_targets, checkpoint_config_payload = load_checkpoint_model(
+                checkpoint_path,
+                device,
+                model_source=model_source,
+            )
             checkpoint_config = TrainingConfig(**checkpoint_config_payload) if checkpoint_config_payload else config
             if target_columns is None:
                 target_columns = checkpoint_targets
             elif target_columns != checkpoint_targets:
                 raise ValueError("Checkpoint target columns do not match across ensemble members.")
 
-            test_loader = create_test_loader(checkpoint_config, test_df, checkpoint_targets, metadata_spec)
+            test_loader = create_test_loader(
+                checkpoint_config,
+                test_df,
+                checkpoint_targets,
+                metadata_spec,
+                model_source=model_source,
+            )
             per_model_predictions = []
             for batch in test_loader:
                 batch = move_batch_to_device(batch, device)

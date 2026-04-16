@@ -9,11 +9,13 @@ import yaml
 
 
 QUEST_DATA_DIR_ENV = "QUEST_DATA_DIR"
+QUEST_MODEL_DIR_ENV = "QUEST_MODEL_DIR"
 
 
 @dataclass
 class TrainingConfig:
     data_dir: str | None = None
+    model_dir: str | None = None
     artifacts_dir: str = "artifacts"
     backbone: str = "microsoft/deberta-v3-base"
     folds: int = 5
@@ -66,6 +68,12 @@ class TrainingConfig:
                 f"or export {QUEST_DATA_DIR_ENV}."
             )
         return Path(candidate)
+
+    def resolved_model_source(self, override_model_dir: str | Path | None = None) -> str | Path:
+        candidate = override_model_dir or os.environ.get(QUEST_MODEL_DIR_ENV) or self.model_dir
+        if candidate:
+            return Path(candidate)
+        return self.backbone
 
     def resolved_artifacts_dir(self) -> Path:
         return Path(self.artifacts_dir)

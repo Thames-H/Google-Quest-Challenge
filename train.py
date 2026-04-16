@@ -15,6 +15,11 @@ def parse_args():
         help="Override the dataset directory. Takes precedence over QUEST_DATA_DIR and config data_dir.",
     )
     parser.add_argument(
+        "--model-dir",
+        default=None,
+        help="Override the local model directory. Takes precedence over QUEST_MODEL_DIR and config model_dir.",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Run a minimal debug loop with fewer folds, epochs, and batches.",
@@ -27,7 +32,7 @@ def main() -> None:
     config = load_config(args.config)
     if args.debug:
         config.debug = True
-    summary = train_pipeline(config, data_dir=args.data_dir)
+    summary = train_pipeline(config, data_dir=args.data_dir, model_dir=args.model_dir)
     print(summary)
 
 

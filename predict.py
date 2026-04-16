@@ -16,6 +16,11 @@ def parse_args():
         help="Override the dataset directory. Takes precedence over QUEST_DATA_DIR and config data_dir.",
     )
     parser.add_argument(
+        "--model-dir",
+        default=None,
+        help="Override the local model directory. Takes precedence over QUEST_MODEL_DIR and config model_dir.",
+    )
+    parser.add_argument(
         "--checkpoint-dir",
         default="artifacts/checkpoints",
         help="Directory containing trained fold checkpoints.",
@@ -36,6 +41,7 @@ def main() -> None:
         checkpoint_dir=Path(args.checkpoint_dir),
         output_path=Path(args.output),
         data_dir=args.data_dir,
+        model_dir=args.model_dir,
     )
     print(summary)
 

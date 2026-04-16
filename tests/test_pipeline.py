@@ -305,3 +305,20 @@ def test_load_config_reads_expected_defaults(tmp_path):
     assert config.folds == 2
     assert config.seeds == [7]
     assert config.gradient_checkpointing is True
+
+
+def test_resolved_model_source_prefers_cli_then_env_then_config(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    write_competition_files(data_dir)
+    config_path = write_config(tmp_path, data_dir)
+
+    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    payload["model_dir"] = str(tmp_path / "config-model")
+    config_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    config = load_config(config_path)
+    monkeypatch.setenv("QUEST_MODEL_DIR", str(tmp_path / "env-model"))
+
+    assert config.resolved_model_source() == (tmp_path / "env-model")
+    assert config.resolved_model_source(tmp_path / "cli-model") == (tmp_path / "cli-model")
