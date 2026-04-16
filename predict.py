@@ -11,6 +11,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate a submission CSV for Google QUEST.")
     parser.add_argument("--config", required=True, help="Path to the YAML config file.")
     parser.add_argument(
+        "--data-dir",
+        default=None,
+        help="Override the dataset directory. Takes precedence over QUEST_DATA_DIR and config data_dir.",
+    )
+    parser.add_argument(
         "--checkpoint-dir",
         default="artifacts/checkpoints",
         help="Directory containing trained fold checkpoints.",
@@ -30,6 +35,7 @@ def main() -> None:
         config,
         checkpoint_dir=Path(args.checkpoint_dir),
         output_path=Path(args.output),
+        data_dir=args.data_dir,
     )
     print(summary)
 

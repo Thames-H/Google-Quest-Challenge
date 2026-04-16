@@ -1,6 +1,7 @@
 torch
 transformers
 tokenizers
+sentencepiece
 scipy
 tqdm
 pyyaml

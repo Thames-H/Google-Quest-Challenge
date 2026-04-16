@@ -1,4 +1,4 @@
-data_dir: data/google-quest-challenge
+data_dir: ../google-quest-data/google-quest-challenge
 artifacts_dir: artifacts
 backbone: roberta-base
 folds: 5

@@ -1,0 +1,40 @@
+data_dir: /data/google-quest-challenge
+artifacts_dir: artifacts_deberta
+backbone: microsoft/deberta-v3-base
+folds: 5
+seeds:
+  - 42
+  - 2024
+epochs: 3
+lr_encoder: 2.0e-5
+lr_head: 8.0e-4
+weight_decay: 0.01
+warmup_ratio: 0.1
+max_len_question: 256
+max_len_answer: 256
+max_title_tokens: 32
+question_chunk_size: 160
+answer_chunk_size: 160
+question_chunk_overlap: 32
+answer_chunk_overlap: 32
+question_max_chunks: 3
+answer_max_chunks: 3
+batch_size: 2
+grad_accum_steps: 4
+fp16: true
+gradient_checkpointing: true
+num_workers: 2
+dropout: 0.1
+device: auto
+use_metadata: true
+meta_embedding_dim: 16
+meta_hidden_dim: 64
+pointwise_loss: smooth_l1
+pointwise_weight: 1.0
+ranking_weight: 0.2
+ranking_margin: 0.05
+distribution_matching: true
+debug: false
+debug_folds: 1
+debug_epochs: 1
+debug_batches: 20
