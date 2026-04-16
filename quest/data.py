@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import pandas as pd
 import torch
 from sklearn.model_selection import GroupKFold
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, DebertaV2Tokenizer
 
 
 WHITESPACE_RE = re.compile(r"\s+")
@@ -28,13 +28,13 @@ def load_tokenizer(tokenizer_name: str):
         warnings.warn(
             (
                 f"Fast tokenizer load failed for {tokenizer_name}; "
-                "falling back to the slow tokenizer. "
+                "falling back to the explicit DebertaV2 slow tokenizer. "
                 f"Original error: {exc}"
             ),
             RuntimeWarning,
             stacklevel=2,
         )
-        return AutoTokenizer.from_pretrained(tokenizer_name, use_fast=False)
+        return DebertaV2Tokenizer.from_pretrained(tokenizer_name)
 
 
 @dataclass

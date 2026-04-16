@@ -224,18 +224,24 @@ def test_dataset_and_collate_return_chunked_inputs_and_metadata(monkeypatch):
 
 def test_dataset_falls_back_to_slow_tokenizer_when_fast_loader_breaks(monkeypatch):
     calls = []
+    slow_calls = []
 
     class TokenizerLoader:
         @staticmethod
         def from_pretrained(_name, use_fast=True):
             calls.append(use_fast)
-            if use_fast:
-                raise AttributeError("'NoneType' object has no attribute 'endswith'")
+            raise AttributeError("'NoneType' object has no attribute 'endswith'")
+
+    class SlowTokenizerLoader:
+        @staticmethod
+        def from_pretrained(_name):
+            slow_calls.append("slow")
             return ChunkingDummyTokenizer()
 
     train_df = build_dataframe(2)
     metadata_spec = prepare_metadata_spec(train_df, train_df)
     monkeypatch.setattr("quest.data.AutoTokenizer", TokenizerLoader)
+    monkeypatch.setattr("quest.data.DebertaV2Tokenizer", SlowTokenizerLoader)
 
     dataset = GoogleQuestDataset(
         dataframe=train_df,
@@ -255,7 +261,8 @@ def test_dataset_falls_back_to_slow_tokenizer_when_fast_loader_breaks(monkeypatc
     )
 
     sample = dataset[0]
-    assert calls == [True, False]
+    assert calls == [True]
+    assert slow_calls == ["slow"]
     assert sample["q_input_ids"].shape[-1] == 24
     assert sample["a_input_ids"].shape[-1] == 24
 
