@@ -1,0 +1,10 @@
+.swebench/
+.devcontainer/
+.github/
+.vscode/
+.gitignore
+.claudeignore
+.copilotignore
+.cursorignore
+.cursorrules
+CLAUDE.md
