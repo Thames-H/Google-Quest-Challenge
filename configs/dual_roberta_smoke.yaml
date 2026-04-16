@@ -1,0 +1,26 @@
+data_dir: data/google-quest-challenge
+artifacts_dir: artifacts_smoke
+backbone: roberta-base
+folds: 2
+seeds:
+  - 42
+epochs: 1
+lr_encoder: 3.0e-5
+lr_head: 1.0e-3
+weight_decay: 0.01
+warmup_ratio: 0.0
+max_len_question: 64
+max_len_answer: 64
+batch_size: 1
+grad_accum_steps: 1
+fp16: false
+gradient_checkpointing: true
+num_workers: 0
+dropout: 0.1
+device: auto
+debug: false
+debug_folds: 1
+debug_epochs: 1
+debug_batches: 8
+train_row_limit: 8
+test_row_limit: 8
