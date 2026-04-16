@@ -2,6 +2,8 @@
 data/
 artifacts/
 artifacts_smoke/
+artifacts_deberta/
+artifacts_deberta_smoke/
 submission*.csv
 .log/
 
