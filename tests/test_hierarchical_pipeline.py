@@ -222,6 +222,44 @@ def test_dataset_and_collate_return_chunked_inputs_and_metadata(monkeypatch):
     assert batch["labels"].shape == (2, len(TARGET_COLUMNS))
 
 
+def test_dataset_falls_back_to_slow_tokenizer_when_fast_loader_breaks(monkeypatch):
+    calls = []
+
+    class TokenizerLoader:
+        @staticmethod
+        def from_pretrained(_name, use_fast=True):
+            calls.append(use_fast)
+            if use_fast:
+                raise AttributeError("'NoneType' object has no attribute 'endswith'")
+            return ChunkingDummyTokenizer()
+
+    train_df = build_dataframe(2)
+    metadata_spec = prepare_metadata_spec(train_df, train_df)
+    monkeypatch.setattr("quest.data.AutoTokenizer", TokenizerLoader)
+
+    dataset = GoogleQuestDataset(
+        dataframe=train_df,
+        tokenizer_name="microsoft/deberta-v3-base",
+        max_len_question=24,
+        max_len_answer=24,
+        question_chunk_size=5,
+        answer_chunk_size=4,
+        question_chunk_overlap=1,
+        answer_chunk_overlap=1,
+        question_max_chunks=3,
+        answer_max_chunks=4,
+        max_title_tokens=6,
+        target_columns=TARGET_COLUMNS,
+        is_train=True,
+        metadata_spec=metadata_spec,
+    )
+
+    sample = dataset[0]
+    assert calls == [True, False]
+    assert sample["q_input_ids"].shape[-1] == 24
+    assert sample["a_input_ids"].shape[-1] == 24
+
+
 def test_model_forward_and_mixed_loss_support_chunked_batches(monkeypatch):
     monkeypatch.setattr("quest.model.AutoModel.from_pretrained", lambda *_args, **_kwargs: HierarchicalDummyEncoder())
 

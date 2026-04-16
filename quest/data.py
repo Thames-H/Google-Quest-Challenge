@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -15,6 +16,25 @@ WHITESPACE_RE = re.compile(r"\s+")
 URL_RE = re.compile(r"https?://\S+")
 CODE_RE = re.compile(r"<code>.*?</code>|```.*?```", re.IGNORECASE | re.DOTALL)
 WORD_RE = re.compile(r"\w+")
+
+
+def load_tokenizer(tokenizer_name: str):
+    try:
+        return AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+    except Exception as exc:
+        is_deberta_v3 = "deberta-v3" in tokenizer_name.lower()
+        if not is_deberta_v3:
+            raise
+        warnings.warn(
+            (
+                f"Fast tokenizer load failed for {tokenizer_name}; "
+                "falling back to the slow tokenizer. "
+                f"Original error: {exc}"
+            ),
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return AutoTokenizer.from_pretrained(tokenizer_name, use_fast=False)
 
 
 @dataclass
@@ -247,7 +267,7 @@ class GoogleQuestDataset(torch.utils.data.Dataset):
         self.answer_max_chunks = answer_max_chunks
         self.max_title_tokens = max_title_tokens
         self.metadata_spec = metadata_spec
-        self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(tokenizer_name)
+        self.tokenizer = tokenizer or load_tokenizer(tokenizer_name)
 
     def __len__(self) -> int:
         return len(self.dataframe)
