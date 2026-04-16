@@ -1,0 +1,15 @@
+# data and generated artifacts
+data/
+artifacts/
+artifacts_smoke/
+submission*.csv
+.log/
+
+# python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# local environment
+.venv/
+venv/
